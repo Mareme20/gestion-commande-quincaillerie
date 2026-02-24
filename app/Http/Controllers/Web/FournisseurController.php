@@ -53,14 +53,14 @@ class FournisseurController extends Controller
         }, 'commandes.produits']);
         
         // Statistiques
-        $commandesEnCours = $fournisseur->commandes->where('etat', 'en_cours')->count();
-        $commandesLivrees = $fournisseur->commandes->where('etat', 'livre')->count();
-        $commandesPayees = $fournisseur->commandes->where('etat', 'paye')->count();
+        $commandesEnCours = $fournisseur->commandes->where('etat', 'validee')->count();
+        $commandesLivrees = $fournisseur->commandes->where('etat', 'recue')->count();
+        $commandesPayees = $fournisseur->commandes->where('etat', 'cloturee')->count();
         $detteTotale = $fournisseur->detteTotale();
         
         // Commandes avec dette
         $commandesAvecDette = $fournisseur->commandes->filter(function($commande) {
-            return $commande->etat !== 'paye' && $commande->etat !== 'annule' && 
+            return $commande->etat !== 'cloturee' && $commande->etat !== 'annule' && 
                    $commande->montantRestant() > 0;
         });
         
@@ -101,7 +101,7 @@ class FournisseurController extends Controller
     {
         // Vérifier si le fournisseur a des commandes en cours
         $commandesEnCours = $fournisseur->commandes()
-            ->where('etat', 'en_cours')
+            ->whereIn('etat', ['brouillon', 'validee'])
             ->count();
             
         if ($commandesEnCours > 0) {
@@ -135,7 +135,7 @@ class FournisseurController extends Controller
     {
         $dette = $fournisseur->detteTotale();
         $commandesAvecDette = $fournisseur->commandes()
-            ->whereIn('etat', ['en_cours', 'livre'])
+            ->whereIn('etat', ['validee', 'recue'])
             ->with('versements')
             ->get()
             ->filter(function($commande) {

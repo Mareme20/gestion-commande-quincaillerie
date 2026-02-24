@@ -19,7 +19,7 @@ class Fournisseur extends Model
     public function detteTotale()
     {
         return $this->commandes()
-            ->where('etat', '!=', 'paye')
+            ->whereIn('etat', ['validee', 'recue'])
             ->sum('montant_total');
     }
 }

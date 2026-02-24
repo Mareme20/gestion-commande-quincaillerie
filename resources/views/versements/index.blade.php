@@ -191,7 +191,7 @@
                         <select class="form-select" id="commande_id" name="commande_id" required>
                             <option value="">Sélectionnez une commande</option>
                             @foreach($commandes as $commande)
-                                @if($commande->etat != 'annule' && $commande->etat != 'paye')
+                                @if($commande->etat != 'annule' && $commande->etat != 'cloturee')
                                     @php
                                         $montantVerse = $commande->versements->sum('montant');
                                         $montantRestant = $commande->montant_total - $montantVerse;
@@ -387,9 +387,10 @@ function formatMoney(amount) {
 
 function getEtatClass(etat) {
     switch(etat) {
-        case 'en_cours': return 'badge-en_cours';
-        case 'livre': return 'badge-livre';
-        case 'paye': return 'badge-paye';
+        case 'brouillon': return 'badge-warning';
+        case 'validee': return 'badge-primary';
+        case 'recue': return 'badge-livre';
+        case 'cloturee': return 'badge-paye';
         case 'annule': return 'badge-annule';
         default: return 'badge-secondary';
     }
@@ -397,9 +398,10 @@ function getEtatClass(etat) {
 
 function getEtatText(etat) {
     switch(etat) {
-        case 'en_cours': return 'En cours';
-        case 'livre': return 'Livré';
-        case 'paye': return 'Payé';
+        case 'brouillon': return 'Brouillon';
+        case 'validee': return 'Validée';
+        case 'recue': return 'Reçue';
+        case 'cloturee': return 'Clôturée';
         case 'annule': return 'Annulé';
         default: return etat;
     }

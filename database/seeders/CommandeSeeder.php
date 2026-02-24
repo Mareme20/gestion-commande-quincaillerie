@@ -30,7 +30,7 @@ class CommandeSeeder extends Seeder
                 $etat = $this->etatAleatoire();
                 $dateLivraisonReelle = null;
 
-                if (in_array($etat, ['livre', 'paye'], true)) {
+                if (in_array($etat, ['recue', 'cloturee'], true)) {
                     $dateLivraisonReelle = $dateLivraisonPrevue->copy()->addDays(random_int(0, 4));
                 }
 
@@ -67,7 +67,7 @@ class CommandeSeeder extends Seeder
 
     private function etatAleatoire(): string
     {
-        $pool = ['en_cours', 'en_cours', 'livre', 'livre', 'paye', 'annule'];
+        $pool = ['brouillon', 'validee', 'validee', 'recue', 'recue', 'cloturee', 'annule'];
 
         return $pool[array_rand($pool)];
     }

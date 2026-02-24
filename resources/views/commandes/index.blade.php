@@ -26,9 +26,10 @@
                         <label for="etat" class="form-label">État</label>
                         <select class="form-select" id="etat" name="etat">
                             <option value="">Tous les états</option>
-                            <option value="en_cours" {{ request('etat') == 'en_cours' ? 'selected' : '' }}>En cours</option>
-                            <option value="livre" {{ request('etat') == 'livre' ? 'selected' : '' }}>Livré</option>
-                            <option value="paye" {{ request('etat') == 'paye' ? 'selected' : '' }}>Payé</option>
+                            <option value="brouillon" {{ request('etat') == 'brouillon' ? 'selected' : '' }}>Brouillon</option>
+                            <option value="validee" {{ request('etat') == 'validee' ? 'selected' : '' }}>Validée</option>
+                            <option value="recue" {{ request('etat') == 'recue' ? 'selected' : '' }}>Reçue</option>
+                            <option value="cloturee" {{ request('etat') == 'cloturee' ? 'selected' : '' }}>Clôturée</option>
                             <option value="annule" {{ request('etat') == 'annule' ? 'selected' : '' }}>Annulé</option>
                         </select>
                     </div>
@@ -77,8 +78,8 @@
             <div class="card-body py-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-0">En cours</h6>
-                        <h4 class="mb-0">{{ $stats['en_cours'] }}</h4>
+                        <h6 class="mb-0">Brouillon</h6>
+                        <h4 class="mb-0">{{ $stats['brouillon'] }}</h4>
                     </div>
                     <i class="bi bi-clock-history" style="font-size: 2rem;"></i>
                 </div>
@@ -90,8 +91,8 @@
             <div class="card-body py-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-0">Livrées</h6>
-                        <h4 class="mb-0">{{ $stats['livre'] }}</h4>
+                        <h6 class="mb-0">Validées</h6>
+                        <h4 class="mb-0">{{ $stats['validee'] }}</h4>
                     </div>
                     <i class="bi bi-truck" style="font-size: 2rem;"></i>
                 </div>
@@ -103,8 +104,8 @@
             <div class="card-body py-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-0">Payées</h6>
-                        <h4 class="mb-0">{{ $stats['paye'] }}</h4>
+                        <h6 class="mb-0">Reçues</h6>
+                        <h4 class="mb-0">{{ $stats['recue'] }}</h4>
                     </div>
                     <i class="bi bi-check-circle" style="font-size: 2rem;"></i>
                 </div>
@@ -116,8 +117,8 @@
             <div class="card-body py-3">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-0">Annulées</h6>
-                        <h4 class="mb-0">{{ $stats['annule'] }}</h4>
+                        <h6 class="mb-0">Clôturées</h6>
+                        <h4 class="mb-0">{{ $stats['cloturee'] }}</h4>
                     </div>
                     <i class="bi bi-x-circle" style="font-size: 2rem;"></i>
                 </div>
@@ -169,12 +170,8 @@
                                     <strong>{{ number_format($commande->montant_total, 0, ',', ' ') }} FCFA</strong>
                                 </td>
                                 <td>
-                                    <span class="badge badge-etat {{ $commande->etat == 'en_cours' ? 'badge-en_cours' : 
-                                                                   ($commande->etat == 'livre' ? 'badge-livre' : 
-                                                                   ($commande->etat == 'paye' ? 'badge-paye' : 'badge-annule')) }}">
-                                        {{ $commande->etat == 'en_cours' ? 'En cours' : 
-                                          ($commande->etat == 'livre' ? 'Livré' : 
-                                          ($commande->etat == 'paye' ? 'Payé' : 'Annulé')) }}
+                                    <span class="badge badge-etat {{ $commande->etatBadgeClass() }}">
+                                        {{ $commande->etatLabel() }}
                                     </span>
                                 </td>
                                 <td>
@@ -199,11 +196,21 @@
                                            class="btn btn-sm btn-outline-info">
                                             <i class="bi bi-eye"></i>
                                         </a>
-                                        @if($commande->etat == 'en_cours')
+                                        @if($commande->etat === 'brouillon')
+                                            <form action="{{ route('commandes.valider', $commande->id) }}"
+                                                  method="POST"
+                                                  style="display: inline;">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Valider">
+                                                    <i class="bi bi-check2-circle"></i>
+                                                </button>
+                                            </form>
                                             <a href="{{ route('commandes.edit', $commande->id) }}" 
                                                class="btn btn-sm btn-outline-primary">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
+                                        @endif
+                                        @if(in_array($commande->etat, ['brouillon', 'validee']))
                                             <form action="{{ route('commandes.annuler', $commande->id) }}" 
                                                   method="POST" 
                                                   style="display: inline;"
@@ -214,7 +221,7 @@
                                                 </button>
                                             </form>
                                         @endif
-                                        @if(Auth::user()->isResponsablePaiement() && $montantRestant > 0 && $commande->etat === 'livre' && $commande->date_livraison_reelle)
+                                        @if(Auth::user()->isResponsablePaiement() && $montantRestant > 0 && $commande->etat === 'recue' && $commande->date_livraison_reelle)
                                             <button class="btn btn-sm btn-outline-success"
                                                     onclick="showPaiementModal({{ $commande->id }})">
                                                 <i class="bi bi-cash-coin"></i>

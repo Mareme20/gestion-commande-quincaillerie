@@ -253,9 +253,10 @@ $(document).ready(function() {
         
         // Graphique de répartition par état
         const etatsSeries = [
-            Number(repartitionEtats.en_cours || 0),
-            Number(repartitionEtats.livre || 0),
-            Number(repartitionEtats.paye || 0),
+            Number(repartitionEtats.brouillon || 0),
+            Number(repartitionEtats.validee || 0),
+            Number(repartitionEtats.recue || 0),
+            Number(repartitionEtats.cloturee || 0),
             Number(repartitionEtats.annule || 0)
         ];
 
@@ -265,8 +266,8 @@ $(document).ready(function() {
                 type: 'donut',
                 height: 350
             },
-            labels: ['En cours', 'Livré', 'Payé', 'Annulé'],
-            colors: ['#f39c12', '#3498db', '#2ecc71', '#e74c3c'],
+            labels: ['Brouillon', 'Validée', 'Reçue', 'Clôturée', 'Annulé'],
+            colors: ['#f39c12', '#3498db', '#17a2b8', '#2ecc71', '#e74c3c'],
             responsive: [{
                 breakpoint: 480,
                 options: {
@@ -341,25 +342,27 @@ $(document).ready(function() {
         });
     }
     
-    function getEtatClass(etat) {
-        switch(etat) {
-            case 'en_cours': return 'badge-en_cours';
-            case 'livre': return 'badge-livre';
-            case 'paye': return 'badge-paye';
-            case 'annule': return 'badge-annule';
-            default: return 'badge-secondary';
-        }
+function getEtatClass(etat) {
+    switch(etat) {
+        case 'brouillon': return 'badge-warning';
+        case 'validee': return 'badge-en_cours';
+        case 'recue': return 'badge-livre';
+        case 'cloturee': return 'badge-paye';
+        case 'annule': return 'badge-annule';
+        default: return 'badge-secondary';
     }
-    
-    function getEtatText(etat) {
-        switch(etat) {
-            case 'en_cours': return 'En cours';
-            case 'livre': return 'Livré';
-            case 'paye': return 'Payé';
-            case 'annule': return 'Annulé';
-            default: return etat;
-        }
+}
+
+function getEtatText(etat) {
+    switch(etat) {
+        case 'brouillon': return 'Brouillon';
+        case 'validee': return 'Validée';
+        case 'recue': return 'Reçue';
+        case 'cloturee': return 'Clôturée';
+        case 'annule': return 'Annulé';
+        default: return etat;
     }
+}
     
     // Récupérer le token depuis la session
     const apiToken = '{{ Auth::user()->createToken("web-token")->plainTextToken }}';

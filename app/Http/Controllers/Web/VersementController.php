@@ -29,7 +29,7 @@ class VersementController extends Controller
         }
         
         $versements = $query->latest()->get();
-        $commandes = Commande::where('etat', 'livre')
+        $commandes = Commande::where('etat', Commande::ETAT_RECUE)
             ->whereNotNull('date_livraison_reelle')
             ->with('fournisseur')
             ->get();
@@ -50,7 +50,7 @@ class VersementController extends Controller
     
     public function create()
     {
-        $commandes = Commande::where('etat', 'livre')
+        $commandes = Commande::where('etat', Commande::ETAT_RECUE)
             ->whereNotNull('date_livraison_reelle')
             ->with('fournisseur')
             ->get()
@@ -75,7 +75,7 @@ class VersementController extends Controller
         
         $commande = Commande::findOrFail($request->commande_id);
 
-        if (!$commande->date_livraison_reelle || $commande->etat === 'en_cours') {
+        if (!$commande->date_livraison_reelle || $commande->etat !== Commande::ETAT_RECUE) {
             return back()->withErrors([
                 'commande_id' => "Le paiement est autorisé uniquement après la livraison réelle."
             ])->withInput();
@@ -162,9 +162,7 @@ class VersementController extends Controller
             
             // Vérifier si la commande est maintenant totalement payée
             if ($commande->montantRestant() == 0) {
-                $commande->update(['etat' => 'paye']);
-            } elseif ($commande->etat === 'en_cours' && $commande->date_livraison_reelle) {
-                $commande->update(['etat' => 'livre']);
+                $commande->update(['etat' => Commande::ETAT_CLOTUREE]);
             }
             
             DB::commit();
@@ -230,9 +228,9 @@ class VersementController extends Controller
             
             // Recalculer l'état de la commande
             if ($nouveauMontantRestant == 0) {
-                $commande->update(['etat' => 'paye']);
-            } elseif ($commande->etat === 'paye' && $nouveauMontantRestant > 0) {
-                $commande->update(['etat' => $commande->date_livraison_reelle ? 'livre' : 'en_cours']);
+                $commande->update(['etat' => Commande::ETAT_CLOTUREE]);
+            } elseif ($commande->etat === Commande::ETAT_CLOTUREE && $nouveauMontantRestant > 0) {
+                $commande->update(['etat' => Commande::ETAT_RECUE]);
             }
             
             DB::commit();
@@ -259,10 +257,8 @@ class VersementController extends Controller
             // Recalculer l'état de la commande
             $montantRestant = $commande->montantRestant();
             
-            if ($montantRestant == $commande->montant_total) {
-                $commande->update(['etat' => 'en_cours']);
-            } elseif ($montantRestant > 0 && $commande->etat === 'paye') {
-                $commande->update(['etat' => $commande->date_livraison_reelle ? 'livre' : 'en_cours']);
+            if ($montantRestant > 0 && $commande->etat === Commande::ETAT_CLOTUREE) {
+                $commande->update(['etat' => Commande::ETAT_RECUE]);
             }
             
             DB::commit();

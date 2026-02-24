@@ -12,7 +12,7 @@ class VersementSeeder extends Seeder
     public function run(): void
     {
         $commandes = Commande::with('versements')
-            ->whereIn('etat', ['livre', 'paye'])
+            ->whereIn('etat', ['recue', 'cloturee'])
             ->whereNotNull('date_livraison_reelle')
             ->get();
 
@@ -21,7 +21,7 @@ class VersementSeeder extends Seeder
                 continue;
             }
 
-            if ($commande->etat === 'paye') {
+            if ($commande->etat === 'cloturee') {
                 $this->seedCommandePayee($commande);
                 continue;
             }

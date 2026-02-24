@@ -84,7 +84,7 @@
                     <div class="card-body py-3">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="mb-0">En cours</h6>
+                                <h6 class="mb-0">Validées</h6>
                                 <h3 class="mb-0">{{ $commandesEnCours }}</h3>
                             </div>
                             <i class="bi bi-clock-history"></i>
@@ -97,7 +97,7 @@
                     <div class="card-body py-3">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="mb-0">Livrées</h6>
+                                <h6 class="mb-0">Reçues</h6>
                                 <h3 class="mb-0">{{ $commandesLivrees }}</h3>
                             </div>
                             <i class="bi bi-truck"></i>
@@ -110,7 +110,7 @@
                     <div class="card-body py-3">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="mb-0">Payées</h6>
+                                <h6 class="mb-0">Clôturées</h6>
                                 <h3 class="mb-0">{{ $commandesPayees }}</h3>
                             </div>
                             <i class="bi bi-check-circle"></i>
@@ -156,12 +156,8 @@
                                 <td>{{ $commande->date_commande->format('d/m/Y') }}</td>
                                 <td>{{ number_format($commande->montant_total, 0, ',', ' ') }} FCFA</td>
                                 <td>
-                                    <span class="badge badge-etat {{ $commande->etat == 'en_cours' ? 'badge-en_cours' : 
-                                                                   ($commande->etat == 'livre' ? 'badge-livre' : 
-                                                                   ($commande->etat == 'paye' ? 'badge-paye' : 'badge-annule')) }}">
-                                        {{ $commande->etat == 'en_cours' ? 'En cours' : 
-                                          ($commande->etat == 'livre' ? 'Livré' : 
-                                          ($commande->etat == 'paye' ? 'Payé' : 'Annulé')) }}
+                                    <span class="badge badge-etat {{ $commande->etatBadgeClass() }}">
+                                        {{ $commande->etatLabel() }}
                                     </span>
                                 </td>
                                 <td>

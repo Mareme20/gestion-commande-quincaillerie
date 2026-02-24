@@ -39,7 +39,7 @@ class VersementController extends Controller
             return response()->json(['message' => 'Impossible d\'ajouter un versement à une commande annulée'], 400);
         }
 
-        if (!$commande->date_livraison_reelle || $commande->etat === 'en_cours') {
+        if (!$commande->date_livraison_reelle || $commande->etat !== Commande::ETAT_RECUE) {
             return response()->json([
                 'message' => 'Le paiement est autorisé uniquement après la livraison réelle'
             ], 400);
@@ -112,9 +112,7 @@ class VersementController extends Controller
             $nouveauMontantRestant = $commande->montantRestant();
             
             if ($nouveauMontantRestant == 0) {
-                $commande->update(['etat' => 'paye']);
-            } elseif ($commande->etat === 'en_cours' && $commande->date_livraison_reelle) {
-                $commande->update(['etat' => 'livre']);
+                $commande->update(['etat' => Commande::ETAT_CLOTUREE]);
             }
 
             DB::commit();
@@ -177,10 +175,8 @@ class VersementController extends Controller
             // Recalculer l'état de la commande
             $montantRestant = $commande->montantRestant();
             
-            if ($montantRestant == $commande->montant_total) {
-                $commande->update(['etat' => 'en_cours']);
-            } elseif ($montantRestant > 0) {
-                $commande->update(['etat' => 'livre']);
+            if ($montantRestant > 0 && $commande->etat === Commande::ETAT_CLOTUREE) {
+                $commande->update(['etat' => Commande::ETAT_RECUE]);
             }
 
             DB::commit();

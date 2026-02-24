@@ -13,6 +13,14 @@ use Illuminate\Support\Facades\Auth;
 
 class CommandeController extends Controller
 {
+    private const ETATS_WORKFLOW = [
+        Commande::ETAT_BROUILLON,
+        Commande::ETAT_VALIDEE,
+        Commande::ETAT_RECUE,
+        Commande::ETAT_CLOTUREE,
+        Commande::ETAT_ANNULE,
+    ];
+
     public function index(Request $request)
     {
         $query = Commande::with(['fournisseur', 'produits']);
@@ -39,9 +47,10 @@ class CommandeController extends Controller
         
         // Statistiques par état
         $stats = [
-            'en_cours' => Commande::where('etat', 'en_cours')->count(),
-            'livre' => Commande::where('etat', 'livre')->count(),
-            'paye' => Commande::where('etat', 'paye')->count(),
+            'brouillon' => Commande::where('etat', Commande::ETAT_BROUILLON)->count(),
+            'validee' => Commande::where('etat', Commande::ETAT_VALIDEE)->count(),
+            'recue' => Commande::where('etat', Commande::ETAT_RECUE)->count(),
+            'cloturee' => Commande::where('etat', Commande::ETAT_CLOTUREE)->count(),
             'annule' => Commande::where('etat', 'annule')->count(),
         ];
         
@@ -116,7 +125,7 @@ class CommandeController extends Controller
                 'date_commande' => $request->date_commande,
                 'montant_total' => $montantTotal,
                 'date_livraison_prevue' => $request->date_livraison_prevue,
-                'etat' => 'en_cours'
+                'etat' => Commande::ETAT_BROUILLON
             ]);
             
             $commande->produits()->attach($produitsData);
@@ -147,9 +156,9 @@ class CommandeController extends Controller
     
     public function edit(Commande $commande)
     {
-        if ($commande->etat !== 'en_cours') {
+        if (!in_array($commande->etat, [Commande::ETAT_BROUILLON, Commande::ETAT_VALIDEE], true)) {
             return redirect()->route('commandes.show', $commande)
-                ->with('error', 'Seules les commandes en cours peuvent être modifiées.');
+                ->with('error', 'Seules les commandes en brouillon ou validées peuvent être modifiées.');
         }
         
         $commande->load(['produits']);
@@ -165,15 +174,15 @@ class CommandeController extends Controller
     
     public function update(Request $request, Commande $commande)
     {
-        if ($commande->etat !== 'en_cours') {
+        if (!in_array($commande->etat, [Commande::ETAT_BROUILLON, Commande::ETAT_VALIDEE], true)) {
             return redirect()->route('commandes.show', $commande)
-                ->with('error', 'Seules les commandes en cours peuvent être modifiées.');
+                ->with('error', 'Seules les commandes en brouillon ou validées peuvent être modifiées.');
         }
         
         $request->validate([
             'date_livraison_prevue' => 'sometimes|required|date',
             'date_livraison_reelle' => 'nullable|date',
-            'etat' => 'sometimes|in:en_cours,livre,paye,annule'
+            'etat' => 'sometimes|in:' . implode(',', self::ETATS_WORKFLOW)
         ]);
         
         $commande->update($request->only(['date_livraison_prevue', 'date_livraison_reelle', 'etat']));
@@ -184,12 +193,12 @@ class CommandeController extends Controller
     
     public function annuler(Commande $commande)
     {
-        if ($commande->etat !== 'en_cours') {
+        if (!in_array($commande->etat, [Commande::ETAT_BROUILLON, Commande::ETAT_VALIDEE], true)) {
             return redirect()->route('commandes.show', $commande)
-                ->with('error', 'Seules les commandes en cours peuvent être annulées.');
+                ->with('error', 'Seules les commandes en brouillon ou validées peuvent être annulées.');
         }
         
-        $commande->update(['etat' => 'annule']);
+        $commande->update(['etat' => Commande::ETAT_ANNULE]);
         
         return redirect()->route('commandes.index')
             ->with('success', 'Commande annulée avec succès.');
@@ -197,14 +206,47 @@ class CommandeController extends Controller
     
     public function destroy(Commande $commande)
     {
-        if ($commande->etat !== 'en_cours') {
+        if ($commande->etat !== Commande::ETAT_BROUILLON) {
             return redirect()->route('commandes.show', $commande)
-                ->with('error', 'Seules les commandes en cours peuvent être supprimées.');
+                ->with('error', 'Seules les commandes brouillon peuvent être supprimées.');
         }
         
         $commande->delete();
         
         return redirect()->route('commandes.index')
             ->with('success', 'Commande supprimée avec succès.');
+    }
+
+    public function valider(Commande $commande)
+    {
+        if ($commande->etat !== Commande::ETAT_BROUILLON) {
+            return redirect()->route('commandes.show', $commande)
+                ->with('error', 'Seules les commandes brouillon peuvent être validées.');
+        }
+
+        $commande->update(['etat' => Commande::ETAT_VALIDEE]);
+
+        return redirect()->route('commandes.show', $commande)
+            ->with('success', 'Commande validée avec succès.');
+    }
+
+    public function receptionner(Request $request, Commande $commande)
+    {
+        if ($commande->etat !== Commande::ETAT_VALIDEE) {
+            return redirect()->route('commandes.show', $commande)
+                ->with('error', 'Seules les commandes validées peuvent être réceptionnées.');
+        }
+
+        $request->validate([
+            'date_livraison_reelle' => 'required|date|after_or_equal:date_commande',
+        ]);
+
+        $commande->update([
+            'etat' => Commande::ETAT_RECUE,
+            'date_livraison_reelle' => $request->date_livraison_reelle,
+        ]);
+
+        return redirect()->route('commandes.show', $commande)
+            ->with('success', 'Commande réceptionnée avec succès.');
     }
 }

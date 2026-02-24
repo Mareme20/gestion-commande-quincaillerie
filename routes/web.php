@@ -59,6 +59,10 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['can:responsable_achat,gestionnaire'])->group(function () {
         // Commandes
         Route::resource('commandes', CommandeController::class);
+        Route::post('/commandes/{commande}/valider', [CommandeController::class, 'valider'])
+            ->name('commandes.valider');
+        Route::post('/commandes/{commande}/receptionner', [CommandeController::class, 'receptionner'])
+            ->name('commandes.receptionner');
         Route::post('/commandes/{commande}/annuler', [CommandeController::class, 'annuler'])
             ->name('commandes.annuler');
         Route::get('/commandes/{commande}/generer-echelonnes', [VersementController::class, 'genererEchelonnes'])

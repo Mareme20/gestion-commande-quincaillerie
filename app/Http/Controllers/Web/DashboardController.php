@@ -20,10 +20,10 @@ class DashboardController extends Controller
         }
         
         // Statistiques principales
-        $commandesEnCours = Commande::where('etat', 'en_cours')->count();
+        $commandesEnCours = Commande::where('etat', 'validee')->count();
         
         $commandesLivraisonJournee = Commande::whereDate('date_livraison_prevue', Carbon::today())
-            ->where('etat', 'en_cours')
+            ->where('etat', 'validee')
             ->count();
         
         // Dette totale
@@ -33,7 +33,7 @@ class DashboardController extends Controller
                 FROM versements 
                 WHERE commande_id = commandes.id
             ), 0)) as dette'))
-            ->whereIn('etat', ['en_cours', 'livre'])
+            ->whereIn('etat', ['validee', 'recue'])
             ->first()->dette ?? 0;
         
         // Versements du jour
@@ -62,7 +62,7 @@ class DashboardController extends Controller
                 ), 0))'))
                 ->from('commandes')
                 ->whereColumn('commandes.fournisseur_id', 'fournisseurs.id')
-                ->whereIn('commandes.etat', ['en_cours', 'livre']);
+                ->whereIn('commandes.etat', ['validee', 'recue']);
             }, 'dette')
             ->having('dette', '>', 0)
             ->orderBy('dette', 'desc')
@@ -98,9 +98,10 @@ class DashboardController extends Controller
         
         // Répartition par état
         $repartitionEtats = [
-            'en_cours' => Commande::where('etat', 'en_cours')->count(),
-            'livre' => Commande::where('etat', 'livre')->count(),
-            'paye' => Commande::where('etat', 'paye')->count(),
+            'brouillon' => Commande::where('etat', 'brouillon')->count(),
+            'validee' => Commande::where('etat', 'validee')->count(),
+            'recue' => Commande::where('etat', 'recue')->count(),
+            'cloturee' => Commande::where('etat', 'cloturee')->count(),
             'annule' => Commande::where('etat', 'annule')->count(),
         ];
         
@@ -141,10 +142,10 @@ class DashboardController extends Controller
                 $dateFin = Carbon::today()->endOfDay();
         }
         
-        $commandesEnCours = Commande::where('etat', 'en_cours')->count();
+        $commandesEnCours = Commande::where('etat', 'validee')->count();
         
         $commandesLivraisonJournee = Commande::whereDate('date_livraison_prevue', Carbon::today())
-            ->where('etat', 'en_cours')
+            ->where('etat', 'validee')
             ->count();
         
         $detteTotale = DB::table('commandes')
@@ -153,7 +154,7 @@ class DashboardController extends Controller
                 FROM versements 
                 WHERE commande_id = commandes.id
             ), 0)) as dette'))
-            ->whereIn('etat', ['en_cours', 'livre'])
+            ->whereIn('etat', ['validee', 'recue'])
             ->first()->dette ?? 0;
         
         $versementsJournee = Versement::whereDate('date_versement', Carbon::today())

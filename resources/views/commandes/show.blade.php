@@ -14,10 +14,24 @@
                 <a href="{{ route('commandes.index') }}" class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Retour
                 </a>
-                @if($commande->etat == 'en_cours')
+                @if($commande->etat === 'brouillon')
                     <a href="{{ route('commandes.edit', $commande) }}" class="btn btn-primary">
                         <i class="bi bi-pencil"></i> Modifier
                     </a>
+                    <form action="{{ route('commandes.valider', $commande) }}" method="POST" class="d-inline">
+                        @csrf
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check2-circle"></i> Valider
+                        </button>
+                    </form>
+                @elseif($commande->etat === 'validee')
+                    <form action="{{ route('commandes.receptionner', $commande) }}" method="POST" class="d-inline">
+                        @csrf
+                        <input type="hidden" name="date_livraison_reelle" value="{{ date('Y-m-d') }}">
+                        <button type="submit" class="btn btn-info text-white">
+                            <i class="bi bi-truck"></i> Réceptionner aujourd'hui
+                        </button>
+                    </form>
                 @endif
             </div>
         </div>
@@ -54,12 +68,8 @@
                     <tr>
                         <td><strong>État:</strong></td>
                         <td>
-                            <span class="badge badge-etat {{ $commande->etat == 'en_cours' ? 'badge-en_cours' : 
-                                                           ($commande->etat == 'livre' ? 'badge-livre' : 
-                                                           ($commande->etat == 'paye' ? 'badge-paye' : 'badge-annule')) }}">
-                                {{ $commande->etat == 'en_cours' ? 'En cours' : 
-                                  ($commande->etat == 'livre' ? 'Livré' : 
-                                  ($commande->etat == 'paye' ? 'Payé' : 'Annulé')) }}
+                            <span class="badge badge-etat {{ $commande->etatBadgeClass() }}">
+                                {{ $commande->etatLabel() }}
                             </span>
                         </td>
                     </tr>
@@ -105,7 +115,7 @@
                     </tr>
                 </table>
                 
-                @if($montantRestant > 0 && $commande->etat === 'livre' && $commande->date_livraison_reelle && Auth::user()->isResponsablePaiement())
+                @if($montantRestant > 0 && $commande->etat === 'recue' && $commande->date_livraison_reelle && Auth::user()->isResponsablePaiement())
                 <div class="d-grid">
                     <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#paiementModal">
                         <i class="bi bi-cash-coin"></i> Enregistrer un paiement

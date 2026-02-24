@@ -9,6 +9,12 @@ class Commande extends Model
 {
     use HasFactory;
 
+    public const ETAT_BROUILLON = 'brouillon';
+    public const ETAT_VALIDEE = 'validee';
+    public const ETAT_RECUE = 'recue';
+    public const ETAT_CLOTUREE = 'cloturee';
+    public const ETAT_ANNULE = 'annule';
+
     protected $fillable = [
         'fournisseur_id',
         'date_commande',
@@ -45,5 +51,29 @@ class Commande extends Model
     {
         $versementsTotal = $this->versements()->sum('montant');
         return $this->montant_total - $versementsTotal;
+    }
+
+    public function etatLabel(): string
+    {
+        return match ($this->etat) {
+            self::ETAT_BROUILLON => 'Brouillon',
+            self::ETAT_VALIDEE => 'Validée',
+            self::ETAT_RECUE => 'Reçue',
+            self::ETAT_CLOTUREE => 'Clôturée',
+            self::ETAT_ANNULE => 'Annulée',
+            default => ucfirst((string) $this->etat),
+        };
+    }
+
+    public function etatBadgeClass(): string
+    {
+        return match ($this->etat) {
+            self::ETAT_BROUILLON => 'badge-warning',
+            self::ETAT_VALIDEE => 'badge-primary',
+            self::ETAT_RECUE => 'badge-info',
+            self::ETAT_CLOTUREE => 'badge-success',
+            self::ETAT_ANNULE => 'badge-annule',
+            default => 'badge-secondary',
+        };
     }
 }

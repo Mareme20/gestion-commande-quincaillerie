@@ -76,7 +76,7 @@ class CommandeController extends Controller
                 'date_commande' => $request->date_commande,
                 'montant_total' => $montantTotal,
                 'date_livraison_prevue' => $request->date_livraison_prevue,
-                'etat' => 'en_cours'
+                'etat' => Commande::ETAT_BROUILLON
             ]);
 
             $commande->produits()->attach($produitsData);
@@ -175,14 +175,14 @@ public function genererVersementsEchelonnes(Request $request, $id)
             return response()->json(['message' => 'Commande non trouvée'], 404);
         }
 
-        if ($commande->etat !== 'en_cours') {
-            return response()->json(['message' => 'Seules les commandes en cours peuvent être modifiées'], 400);
+        if (!in_array($commande->etat, [Commande::ETAT_BROUILLON, Commande::ETAT_VALIDEE], true)) {
+            return response()->json(['message' => 'Seules les commandes en brouillon ou validées peuvent être modifiées'], 400);
         }
 
         $validator = Validator::make($request->all(), [
             'date_livraison_prevue' => 'sometimes|required|date',
             'date_livraison_reelle' => 'nullable|date',
-            'etat' => 'sometimes|in:en_cours,livre,paye,annule'
+            'etat' => 'sometimes|in:brouillon,validee,recue,cloturee,annule'
         ]);
 
         if ($validator->fails()) {
@@ -202,18 +202,18 @@ public function genererVersementsEchelonnes(Request $request, $id)
             return response()->json(['message' => 'Commande non trouvée'], 404);
         }
 
-        if ($commande->etat !== 'en_cours') {
-            return response()->json(['message' => 'Seules les commandes en cours peuvent être annulées'], 400);
+        if (!in_array($commande->etat, [Commande::ETAT_BROUILLON, Commande::ETAT_VALIDEE], true)) {
+            return response()->json(['message' => 'Seules les commandes en brouillon ou validées peuvent être annulées'], 400);
         }
 
-        $commande->update(['etat' => 'annule']);
+        $commande->update(['etat' => Commande::ETAT_ANNULE]);
 
         return response()->json(['message' => 'Commande annulée avec succès']);
     }
 
     public function commandesEnCours()
     {
-        $commandes = Commande::where('etat', 'en_cours')
+        $commandes = Commande::where('etat', Commande::ETAT_VALIDEE)
             ->with(['fournisseur', 'produits'])
             ->orderBy('date_livraison_prevue')
             ->get();
@@ -226,7 +226,7 @@ public function genererVersementsEchelonnes(Request $request, $id)
         $today = Carbon::today()->toDateString();
         
         $commandes = Commande::whereDate('date_livraison_prevue', $today)
-            ->where('etat', 'en_cours')
+            ->where('etat', Commande::ETAT_VALIDEE)
             ->with(['fournisseur', 'produits'])
             ->get();
 
@@ -267,7 +267,7 @@ public function genererVersementsEchelonnes(Request $request, $id)
 
     public function parEtat($etat)
     {
-        $etatsValides = ['en_cours', 'livre', 'paye', 'annule'];
+        $etatsValides = ['brouillon', 'validee', 'recue', 'cloturee', 'annule'];
         
         if (!in_array($etat, $etatsValides)) {
             return response()->json(['message' => 'État invalide'], 400);
