@@ -8,6 +8,9 @@
         <div class="d-flex justify-content-between align-items-center">
             <h1 class="h3 mb-0">Gestion des Commandes</h1>
             <div>
+                <a href="{{ route('commandes.export.csv', request()->query()) }}" class="btn btn-outline-success">
+                    <i class="bi bi-download"></i> Export CSV
+                </a>
                 <a href="{{ route('commandes.create') }}" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> Nouvelle Commande
                 </a>

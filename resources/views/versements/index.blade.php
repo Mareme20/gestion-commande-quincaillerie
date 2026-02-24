@@ -7,9 +7,14 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center">
             <h1 class="h3 mb-0">Gestion des Versements</h1>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createVersementModal">
-                <i class="bi bi-plus-circle"></i> Nouveau Versement
-            </button>
+            <div class="d-flex gap-2">
+                <a href="{{ route('versements.export.csv', request()->query()) }}" class="btn btn-outline-success">
+                    <i class="bi bi-download"></i> Export CSV
+                </a>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createVersementModal">
+                    <i class="bi bi-plus-circle"></i> Nouveau Versement
+                </button>
+            </div>
         </div>
     </div>
 </div>

@@ -6,8 +6,10 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Versement;
 use App\Models\Commande;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class VersementController extends Controller
 {
@@ -159,10 +161,16 @@ class VersementController extends Controller
                 'date_versement' => $request->date_versement,
                 'montant' => $request->montant
             ]);
+
+            AuditLogger::log('versement.create', $versement, [
+                'commande_id' => $commande->id,
+                'montant' => $versement->montant,
+            ]);
             
             // Vérifier si la commande est maintenant totalement payée
             if ($commande->montantRestant() == 0) {
                 $commande->update(['etat' => Commande::ETAT_CLOTUREE]);
+                AuditLogger::log('commande.close', $commande, ['etat' => $commande->etat]);
             }
             
             DB::commit();
@@ -225,12 +233,18 @@ class VersementController extends Controller
                 'date_versement' => $request->date_versement,
                 'montant' => $request->montant
             ]);
+            AuditLogger::log('versement.update', $versement, [
+                'montant' => $request->montant,
+                'date_versement' => $request->date_versement,
+            ]);
             
             // Recalculer l'état de la commande
             if ($nouveauMontantRestant == 0) {
                 $commande->update(['etat' => Commande::ETAT_CLOTUREE]);
+                AuditLogger::log('commande.close', $commande, ['etat' => $commande->etat]);
             } elseif ($commande->etat === Commande::ETAT_CLOTUREE && $nouveauMontantRestant > 0) {
                 $commande->update(['etat' => Commande::ETAT_RECUE]);
+                AuditLogger::log('commande.reopen', $commande, ['etat' => $commande->etat]);
             }
             
             DB::commit();
@@ -253,12 +267,14 @@ class VersementController extends Controller
         
         try {
             $versement->delete();
+            AuditLogger::log('versement.delete', $versement, ['commande_id' => $commande->id]);
             
             // Recalculer l'état de la commande
             $montantRestant = $commande->montantRestant();
             
             if ($montantRestant > 0 && $commande->etat === Commande::ETAT_CLOTUREE) {
                 $commande->update(['etat' => Commande::ETAT_RECUE]);
+                AuditLogger::log('commande.reopen', $commande, ['etat' => $commande->etat]);
             }
             
             DB::commit();
@@ -275,9 +291,9 @@ class VersementController extends Controller
     
     public function genererEchelonnes(Request $request, Commande $commande)
     {
-        if (!$commande->date_livraison_reelle) {
+        if (!$commande->date_livraison_reelle || $commande->etat !== Commande::ETAT_RECUE) {
             return redirect()->route('commandes.show', $commande)
-                ->with('error', 'La commande doit être livrée pour générer les versements échelonnés.');
+                ->with('error', 'La commande doit être réceptionnée pour générer les versements échelonnés.');
         }
         
         $montantRestant = $commande->montantRestant();
@@ -287,7 +303,13 @@ class VersementController extends Controller
                 ->with('error', 'La commande est déjà totalement payée.');
         }
         
-        $nombreVersements = min(3, ceil($montantRestant / 100000)); // Max 3 versements
+        $nombreVersementsExistants = $commande->versements()->count();
+        $nombreVersements = 3 - $nombreVersementsExistants;
+        if ($nombreVersements <= 0) {
+            return redirect()->route('commandes.show', $commande)
+                ->with('error', 'Le maximum de 3 versements est déjà atteint.');
+        }
+
         $montantVersement = $montantRestant / $nombreVersements;
         
         DB::beginTransaction();
@@ -314,6 +336,15 @@ class VersementController extends Controller
                 ]);
                 
                 $versements[] = $versement;
+                AuditLogger::log('versement.create_auto', $versement, [
+                    'commande_id' => $commande->id,
+                    'montant' => $versement->montant,
+                ]);
+            }
+
+            if ($commande->montantRestant() == 0) {
+                $commande->update(['etat' => Commande::ETAT_CLOTUREE]);
+                AuditLogger::log('commande.close', $commande, ['etat' => $commande->etat, 'source' => 'auto_schedule']);
             }
             
             DB::commit();
@@ -326,5 +357,45 @@ class VersementController extends Controller
             return redirect()->route('commandes.show', $commande)
                 ->with('error', 'Erreur lors de la génération des versements: ' . $e->getMessage());
         }
+    }
+
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $query = Versement::with(['commande.fournisseur']);
+
+        if ($request->filled('date_debut')) {
+            $query->whereDate('date_versement', '>=', $request->date_debut);
+        }
+        if ($request->filled('date_fin')) {
+            $query->whereDate('date_versement', '<=', $request->date_fin);
+        }
+        if ($request->filled('commande_id')) {
+            $query->where('commande_id', $request->commande_id);
+        }
+
+        $versements = $query->latest()->get();
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="versements.csv"',
+        ];
+
+        return response()->stream(function () use ($versements) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($handle, ['Numero versement', 'Commande', 'Fournisseur', 'Date', 'Montant'], ';');
+
+            foreach ($versements as $versement) {
+                fputcsv($handle, [
+                    $versement->numero_versement,
+                    'CMD-' . str_pad((string) $versement->commande_id, 6, '0', STR_PAD_LEFT),
+                    $versement->commande?->fournisseur?->nom,
+                    optional($versement->date_versement)->format('Y-m-d'),
+                    $versement->montant,
+                ], ';');
+            }
+
+            fclose($handle);
+        }, 200, $headers);
     }
 }

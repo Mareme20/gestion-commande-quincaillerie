@@ -7,9 +7,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Commande;
 use App\Models\Fournisseur;
 use App\Models\Produit;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CommandeController extends Controller
 {
@@ -130,6 +133,12 @@ class CommandeController extends Controller
             
             $commande->produits()->attach($produitsData);
             
+            AuditLogger::log('commande.create', $commande, [
+                'fournisseur_id' => $commande->fournisseur_id,
+                'montant_total' => $commande->montant_total,
+                'etat' => $commande->etat,
+            ]);
+
             DB::commit();
             
             return redirect()->route('commandes.show', $commande)
@@ -186,6 +195,7 @@ class CommandeController extends Controller
         ]);
         
         $commande->update($request->only(['date_livraison_prevue', 'date_livraison_reelle', 'etat']));
+        AuditLogger::log('commande.update', $commande, $request->only(['date_livraison_prevue', 'date_livraison_reelle', 'etat']));
         
         return redirect()->route('commandes.show', $commande)
             ->with('success', 'Commande mise à jour avec succès.');
@@ -199,6 +209,7 @@ class CommandeController extends Controller
         }
         
         $commande->update(['etat' => Commande::ETAT_ANNULE]);
+        AuditLogger::log('commande.cancel', $commande, ['etat' => $commande->etat]);
         
         return redirect()->route('commandes.index')
             ->with('success', 'Commande annulée avec succès.');
@@ -212,19 +223,71 @@ class CommandeController extends Controller
         }
         
         $commande->delete();
+        AuditLogger::log('commande.delete', $commande);
         
         return redirect()->route('commandes.index')
             ->with('success', 'Commande supprimée avec succès.');
     }
 
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $query = Commande::with(['fournisseur', 'versements']);
+
+        if ($request->filled('etat')) {
+            $query->where('etat', $request->etat);
+        }
+        if ($request->filled('fournisseur_id')) {
+            $query->where('fournisseur_id', $request->fournisseur_id);
+        }
+        if ($request->filled('date_debut')) {
+            $query->whereDate('date_commande', '>=', $request->date_debut);
+        }
+        if ($request->filled('date_fin')) {
+            $query->whereDate('date_commande', '<=', $request->date_fin);
+        }
+
+        $commandes = $query->latest()->get();
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="commandes.csv"',
+        ];
+
+        return response()->stream(function () use ($commandes) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($handle, ['Numero', 'Fournisseur', 'Date commande', 'Date livraison prevue', 'Date livraison reelle', 'Etat', 'Montant total', 'Montant verse', 'Montant restant'], ';');
+
+            foreach ($commandes as $commande) {
+                $montantVerse = $commande->versements->sum('montant');
+                fputcsv($handle, [
+                    'CMD-' . str_pad((string) $commande->id, 6, '0', STR_PAD_LEFT),
+                    $commande->fournisseur?->nom,
+                    optional($commande->date_commande)->format('Y-m-d'),
+                    optional($commande->date_livraison_prevue)->format('Y-m-d'),
+                    optional($commande->date_livraison_reelle)->format('Y-m-d'),
+                    $commande->etatLabel(),
+                    $commande->montant_total,
+                    $montantVerse,
+                    $commande->montant_total - $montantVerse,
+                ], ';');
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
     public function valider(Commande $commande)
     {
+        Gate::authorize('valider-commande', $commande);
+
         if ($commande->etat !== Commande::ETAT_BROUILLON) {
             return redirect()->route('commandes.show', $commande)
                 ->with('error', 'Seules les commandes brouillon peuvent être validées.');
         }
 
         $commande->update(['etat' => Commande::ETAT_VALIDEE]);
+        AuditLogger::log('commande.validate', $commande, ['etat' => $commande->etat]);
 
         return redirect()->route('commandes.show', $commande)
             ->with('success', 'Commande validée avec succès.');
@@ -232,6 +295,8 @@ class CommandeController extends Controller
 
     public function receptionner(Request $request, Commande $commande)
     {
+        Gate::authorize('receptionner-commande', $commande);
+
         if ($commande->etat !== Commande::ETAT_VALIDEE) {
             return redirect()->route('commandes.show', $commande)
                 ->with('error', 'Seules les commandes validées peuvent être réceptionnées.');
@@ -245,8 +310,37 @@ class CommandeController extends Controller
             'etat' => Commande::ETAT_RECUE,
             'date_livraison_reelle' => $request->date_livraison_reelle,
         ]);
+        AuditLogger::log('commande.receive', $commande, [
+            'etat' => $commande->etat,
+            'date_livraison_reelle' => $commande->date_livraison_reelle?->toDateString(),
+        ]);
 
         return redirect()->route('commandes.show', $commande)
             ->with('success', 'Commande réceptionnée avec succès.');
+    }
+
+    public function bonCommande(Commande $commande)
+    {
+        $commande->load(['fournisseur', 'produits.sousCategorie.categorie']);
+
+        return view('commandes.documents.bon-commande', [
+            'commande' => $commande,
+            'dateEdition' => now(),
+        ]);
+    }
+
+    public function bonReception(Commande $commande)
+    {
+        if (!$commande->date_livraison_reelle || !in_array($commande->etat, [Commande::ETAT_RECUE, Commande::ETAT_CLOTUREE], true)) {
+            return redirect()->route('commandes.show', $commande)
+                ->with('error', 'Le bon de réception est disponible uniquement après réception.');
+        }
+
+        $commande->load(['fournisseur', 'produits.sousCategorie.categorie']);
+
+        return view('commandes.documents.bon-reception', [
+            'commande' => $commande,
+            'dateEdition' => now(),
+        ]);
     }
 }

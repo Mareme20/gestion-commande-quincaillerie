@@ -133,6 +133,11 @@
             top: 50%;
             transform: translateY(-50%);
         }
+        .alertes-menu {
+            min-width: 360px;
+            max-height: 420px;
+            overflow-y: auto;
+        }
         /* Logo et branding */
         .sidebar-brand {
             padding: 20px;
@@ -245,6 +250,18 @@
                                     <i class="bi bi-truck"></i> Fournisseurs
                                 </a>
                             </li>
+
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('imports.*') ? 'active' : '' }}" href="{{ route('imports.index') }}">
+                                    <i class="bi bi-upload"></i> Imports CSV
+                                </a>
+                            </li>
+
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->routeIs('audit.*') ? 'active' : '' }}" href="{{ route('audit.index') }}">
+                                    <i class="bi bi-journal-text"></i> Journal d'audit
+                                </a>
+                            </li>
                             @endif
                             
                             <!-- Menu Opérations -->
@@ -331,6 +348,27 @@
                                 @endif
                             </div>
                             <div class="d-flex align-items-center">
+                                @auth
+                                <form method="GET" action="{{ route('search.index') }}" class="me-3 d-none d-md-block">
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control" name="q" value="{{ request('q') }}" placeholder="Recherche globale...">
+                                        <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
+                                    </div>
+                                </form>
+                                @endauth
+                                @auth
+                                <div class="dropdown me-3">
+                                    <button class="btn btn-outline-secondary position-relative" type="button" id="alertesDropdown"
+                                            data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="bi bi-bell"></i>
+                                        <span id="alertes-count"
+                                              class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">0</span>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end alertes-menu" aria-labelledby="alertesDropdown" id="alertes-list">
+                                        <li class="dropdown-item text-muted">Aucune alerte</li>
+                                    </ul>
+                                </div>
+                                @endauth
                                 <span class="text-muted me-3">
                                     <i class="bi bi-calendar"></i> {{ date('d/m/Y') }}
                                 </span>
@@ -527,6 +565,49 @@
             
             // Charger les compteurs après 1 seconde
             setTimeout(loadSidebarCounters, 1000);
+
+            function loadAlertes() {
+                if (!$('#alertes-list').length) {
+                    return;
+                }
+                $.ajax({
+                    url: '/api/dashboard/alertes',
+                    type: 'GET',
+                    success: function(response) {
+                        const countEl = $('#alertes-count');
+                        const listEl = $('#alertes-list');
+
+                        if (!response || !Array.isArray(response.alertes) || response.alertes.length === 0) {
+                            countEl.addClass('d-none').text('0');
+                            listEl.html('<li class="dropdown-item text-muted">Aucune alerte</li>');
+                            return;
+                        }
+
+                        countEl.removeClass('d-none').text(response.total || response.alertes.length);
+                        let html = '';
+                        response.alertes.forEach(function(alerte) {
+                            const badgeClass = alerte.niveau === 'danger' ? 'bg-danger' : 'bg-warning text-dark';
+                            html += `
+                                <li>
+                                    <a class="dropdown-item" href="${alerte.lien || '#'}">
+                                        <div class="d-flex align-items-start gap-2">
+                                            <span class="badge ${badgeClass}">${alerte.niveau || 'info'}</span>
+                                            <span>${alerte.message}</span>
+                                        </div>
+                                    </a>
+                                </li>
+                            `;
+                        });
+                        listEl.html(html);
+                    },
+                    error: function() {
+                        $('#alertes-list').html('<li class="dropdown-item text-muted">Impossible de charger les alertes</li>');
+                    }
+                });
+            }
+
+            loadAlertes();
+            setInterval(loadAlertes, 120000);
         });
 
         // Formater les nombres

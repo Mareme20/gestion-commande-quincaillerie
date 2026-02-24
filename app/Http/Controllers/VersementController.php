@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Versement;
 use App\Models\Commande;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -107,12 +108,14 @@ class VersementController extends Controller
                 'date_versement' => $request->date_versement,
                 'montant' => $request->montant
             ]);
+            AuditLogger::log('versement.create', $versement, ['commande_id' => $commande->id, 'montant' => $versement->montant]);
 
             // Vérifier si la commande est maintenant totalement payée
             $nouveauMontantRestant = $commande->montantRestant();
             
             if ($nouveauMontantRestant == 0) {
                 $commande->update(['etat' => Commande::ETAT_CLOTUREE]);
+                AuditLogger::log('commande.close', $commande, ['etat' => $commande->etat]);
             }
 
             DB::commit();
@@ -171,12 +174,14 @@ class VersementController extends Controller
         try {
             $commande = $versement->commande;
             $versement->delete();
+            AuditLogger::log('versement.delete', $versement, ['commande_id' => $commande->id]);
             
             // Recalculer l'état de la commande
             $montantRestant = $commande->montantRestant();
             
             if ($montantRestant > 0 && $commande->etat === Commande::ETAT_CLOTUREE) {
                 $commande->update(['etat' => Commande::ETAT_RECUE]);
+                AuditLogger::log('commande.reopen', $commande, ['etat' => $commande->etat]);
             }
 
             DB::commit();

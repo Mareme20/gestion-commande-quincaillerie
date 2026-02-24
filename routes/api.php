@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Route;
 Route::get('/dashboard/statistiques', [DashboardController::class, 'statistiques']);
 Route::get('/dashboard/dette-totale', [DashboardController::class, 'detteTotale']);
 Route::get('/dashboard/versements-journee', [DashboardController::class, 'versementsJournee']);
+Route::get('/dashboard/alertes', [DashboardController::class, 'alertes']);
+Route::get('/dashboard/counters', [DashboardController::class, 'counters']);
 
 Route::apiResource('fournisseurs', FournisseurController::class);
 Route::get('/fournisseurs/{id}/dette', [FournisseurController::class, 'detteFournisseur']);

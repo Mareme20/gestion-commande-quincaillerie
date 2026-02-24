@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Commande;
 use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
@@ -23,6 +24,16 @@ class AuthServiceProvider extends ServiceProvider
         // Gate pour le rôle responsable paiement
         Gate::define('responsable_paiement', function (User $user) {
             return $user->isResponsablePaiement();
+        });
+
+        Gate::define('valider-commande', function (User $user, Commande $commande) {
+            return ($user->isResponsableAchat() || $user->isGestionnaire())
+                && $commande->etat === Commande::ETAT_BROUILLON;
+        });
+
+        Gate::define('receptionner-commande', function (User $user, Commande $commande) {
+            return ($user->isResponsableAchat() || $user->isGestionnaire())
+                && $commande->etat === Commande::ETAT_VALIDEE;
         });
     }
 }

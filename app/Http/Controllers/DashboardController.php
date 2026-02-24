@@ -4,9 +4,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Commande;
+use App\Models\Categorie;
 use App\Models\Versement;
 use App\Models\Fournisseur;
 use App\Models\Produit;
+use App\Models\SousCategorie;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -179,6 +181,105 @@ class DashboardController extends Controller
                 'plus_gros_versement' => $versements->max('montant') ?? 0,
                 'plus_petit_versement' => $versements->min('montant') ?? 0
             ]
+        ]);
+    }
+
+    public function alertes()
+    {
+        $today = Carbon::today();
+        $alertes = collect();
+
+        $retards = Commande::with('fournisseur')
+            ->where('etat', 'validee')
+            ->whereDate('date_livraison_prevue', '<', $today)
+            ->orderBy('date_livraison_prevue')
+            ->limit(10)
+            ->get();
+
+        foreach ($retards as $commande) {
+            $alertes->push([
+                'type' => 'retard_livraison',
+                'niveau' => 'danger',
+                'message' => "Commande CMD-" . str_pad((string) $commande->id, 6, '0', STR_PAD_LEFT) . " en retard de livraison.",
+                'lien' => route('commandes.show', $commande->id),
+            ]);
+        }
+
+        $commandesRecues = Commande::with('versements')
+            ->where('etat', 'recue')
+            ->whereNotNull('date_livraison_reelle')
+            ->get();
+
+        foreach ($commandesRecues as $commande) {
+            $days = Carbon::parse($commande->date_livraison_reelle)->diffInDays($today, false);
+            if ($days < 5) {
+                continue;
+            }
+
+            $theorique = min(3, intdiv($days, 5));
+            $actuel = $commande->versements->count();
+            if ($actuel < $theorique && $commande->montantRestant() > 0) {
+                $alertes->push([
+                    'type' => 'echeance_versement',
+                    'niveau' => 'warning',
+                    'message' => "Échéance versement en retard pour CMD-" . str_pad((string) $commande->id, 6, '0', STR_PAD_LEFT) . ".",
+                    'lien' => route('commandes.show', $commande->id),
+                ]);
+            }
+        }
+
+        $stocksCritiques = Produit::where('archive', false)
+            ->where('quantite_stock', '<', 10)
+            ->orderBy('quantite_stock')
+            ->limit(10)
+            ->get();
+
+        foreach ($stocksCritiques as $produit) {
+            $alertes->push([
+                'type' => 'stock_critique',
+                'niveau' => 'warning',
+                'message' => "Stock critique: {$produit->designation} ({$produit->quantite_stock}).",
+                'lien' => route('produits.show', $produit->id),
+            ]);
+        }
+
+        $detteElev = Fournisseur::with(['commandes.versements'])
+            ->where('archive', false)
+            ->get()
+            ->map(function ($fournisseur) {
+                $dette = $fournisseur->commandes
+                    ->whereIn('etat', ['validee', 'recue'])
+                    ->sum(function ($commande) {
+                        return $commande->montantRestant();
+                    });
+                return ['fournisseur' => $fournisseur, 'dette' => $dette];
+            })
+            ->filter(fn ($item) => $item['dette'] > 1000000)
+            ->sortByDesc('dette')
+            ->take(5);
+
+        foreach ($detteElev as $item) {
+            $alertes->push([
+                'type' => 'dette_fournisseur',
+                'niveau' => 'danger',
+                'message' => "Dette élevée chez {$item['fournisseur']->nom}: " . number_format($item['dette'], 0, ',', ' ') . " FCFA.",
+                'lien' => route('fournisseurs.show', $item['fournisseur']->id),
+            ]);
+        }
+
+        return response()->json([
+            'total' => $alertes->count(),
+            'alertes' => $alertes->take(20)->values(),
+        ]);
+    }
+
+    public function counters()
+    {
+        return response()->json([
+            'categories_count' => Categorie::where('archive', false)->count(),
+            'sous_categories_count' => SousCategorie::where('archive', false)->count(),
+            'produits_count' => Produit::where('archive', false)->count(),
+            'commandes_en_cours_count' => Commande::where('etat', 'validee')->count(),
         ]);
     }
 }

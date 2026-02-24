@@ -33,6 +33,14 @@
                         </button>
                     </form>
                 @endif
+                <a href="{{ route('commandes.bon-commande', $commande) }}" class="btn btn-outline-dark">
+                    <i class="bi bi-file-earmark-text"></i> Bon commande
+                </a>
+                @if(in_array($commande->etat, ['recue', 'cloturee']) && $commande->date_livraison_reelle)
+                <a href="{{ route('commandes.bon-reception', $commande) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-file-earmark-check"></i> Bon réception
+                </a>
+                @endif
             </div>
         </div>
     </div>
