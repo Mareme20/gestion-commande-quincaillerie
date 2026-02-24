@@ -1,0 +1,98 @@
+<?php
+// app/Http/Controllers/FournisseurController.php
+
+namespace App\Http\Controllers;
+
+use App\Models\Fournisseur;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+
+class FournisseurController extends Controller
+{
+    public function index()
+    {
+        $fournisseurs = Fournisseur::where('fournisseurs.archive', false)->get();
+        return response()->json($fournisseurs);
+    }
+
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'numero' => 'required|string|unique:fournisseurs,numero|max:50',
+            'nom' => 'required|string|max:255',
+            'adresse' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 400);
+        }
+
+        $fournisseur = Fournisseur::create($request->all());
+
+        return response()->json($fournisseur, 201);
+    }
+
+    public function show($id)
+    {
+        $fournisseur = Fournisseur::with('commandes')->find($id);
+        
+        if (!$fournisseur) {
+            return response()->json(['message' => 'Fournisseur non trouvé'], 404);
+        }
+
+        return response()->json($fournisseur);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $fournisseur = Fournisseur::find($id);
+        
+        if (!$fournisseur) {
+            return response()->json(['message' => 'Fournisseur non trouvé'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'numero' => 'sometimes|required|string|max:50|unique:fournisseurs,numero,' . $id,
+            'nom' => 'sometimes|required|string|max:255',
+            'adresse' => 'sometimes|required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 400);
+        }
+
+        $fournisseur->update($request->all());
+
+        return response()->json($fournisseur);
+    }
+
+    public function destroy($id)
+    {
+        $fournisseur = Fournisseur::find($id);
+        
+        if (!$fournisseur) {
+            return response()->json(['message' => 'Fournisseur non trouvé'], 404);
+        }
+
+        $fournisseur->update(['archive' => true]);
+
+        return response()->json(['message' => 'Fournisseur archivé avec succès']);
+    }
+
+    public function detteFournisseur($id)
+    {
+        $fournisseur = Fournisseur::find($id);
+        
+        if (!$fournisseur) {
+            return response()->json(['message' => 'Fournisseur non trouvé'], 404);
+        }
+
+        $dette = $fournisseur->detteTotale();
+
+        return response()->json([
+            'fournisseur' => $fournisseur->nom,
+            'dette_totale' => $dette,
+            'dette_formatee' => number_format($dette, 2, ',', ' ') . ' FCFA'
+        ]);
+    }
+}

@@ -1,0 +1,76 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Web\AuthController;
+use App\Http\Controllers\Web\DashboardController;
+use App\Http\Controllers\Web\CategorieController;
+use App\Http\Controllers\Web\SousCategorieController;
+use App\Http\Controllers\Web\ProduitController;
+use App\Http\Controllers\Web\FournisseurController;
+use App\Http\Controllers\Web\CommandeController;
+use App\Http\Controllers\Web\VersementController;
+
+// Authentification
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
+    Route::post('/register', [AuthController::class, 'register']);
+});
+
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+// Middleware d'authentification
+Route::middleware(['auth'])->group(function () {
+    
+    // Dashboard
+    Route::get('/', [DashboardController::class, '__invoke'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, '__invoke'])->name('dashboard');
+    
+    // Routes pour Gestionnaire
+    Route::middleware(['can:gestionnaire'])->group(function () {
+        // Catégories
+        Route::resource('categories', CategorieController::class);
+        Route::post('/categories/{category}/archive', [CategorieController::class, 'archive'])
+            ->name('categories.archive');
+        
+        // Sous-catégories
+        Route::resource('sous-categories', SousCategorieController::class)
+            ->parameters(['sous-categories' => 'sousCategorie']);
+        Route::post('/sous-categories/{sousCategorie}/archive', [SousCategorieController::class, 'archive'])
+            ->name('sous-categories.archive');
+        
+        // Produits
+        Route::resource('produits', ProduitController::class);
+        Route::post('/produits/{produit}/archive', [ProduitController::class, 'archive'])
+            ->name('produits.archive');
+        Route::post('/produits/{produit}/upload-image', [ProduitController::class, 'uploadImage'])
+            ->name('produits.upload-image');
+        
+        // Fournisseurs
+        Route::resource('fournisseurs', FournisseurController::class);
+        Route::post('/fournisseurs/{fournisseur}/archive', [FournisseurController::class, 'archive'])
+            ->name('fournisseurs.archive');
+        Route::get('/fournisseurs/{fournisseur}/dette', [FournisseurController::class, 'dette'])
+            ->name('fournisseurs.dette');
+    });
+    
+    // Routes pour Responsable Achat
+    Route::middleware(['can:responsable_achat,gestionnaire'])->group(function () {
+        // Commandes
+        Route::resource('commandes', CommandeController::class);
+        Route::post('/commandes/{commande}/annuler', [CommandeController::class, 'annuler'])
+            ->name('commandes.annuler');
+        Route::get('/commandes/{commande}/generer-echelonnes', [VersementController::class, 'genererEchelonnes'])
+            ->name('commandes.generer-echelonnes');
+    });
+
+    // Routes pour Responsable Paiement
+    Route::middleware(['can:responsable_paiement,gestionnaire'])->group(function () {
+        // Versements
+        Route::resource('versements', VersementController::class);
+    });
+});
+
+// Redirection par défaut
+Route::redirect('/home', '/dashboard');

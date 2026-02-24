@@ -1,0 +1,100 @@
+<?php
+
+namespace App\Http\Controllers\Web;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+
+class AuthController extends Controller
+{
+    public function showLogin()
+    {
+        if (Auth::check()) {
+            return redirect()->route('dashboard');
+        }
+        
+        return view('auth.login');
+    }
+    
+    public function login(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+        
+        // Méthode simple et directe
+        if (Auth::attempt([
+            'email' => $request->email,
+            'password' => $request->password
+        ], $request->filled('remember'))) {
+            
+            $request->session()->regenerate();
+            
+            // Token API (optionnel)
+            $token = Auth::user()->createToken('web-token')->plainTextToken;
+            session(['api_token' => $token]);
+            
+            return redirect()->intended(route('dashboard'));
+        }
+        
+        return back()->withErrors([
+            'email' => 'Email ou mot de passe incorrect.',
+        ])->onlyInput('email');
+    }
+    
+    public function showRegister()
+    {
+        if (Auth::check()) {
+            return redirect()->route('dashboard');
+        }
+        
+        return view('auth.register');
+    }
+    
+    public function register(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'role' => 'required|in:gestionnaire,responsable_achat,responsable_paiement',
+            'terms' => 'required|accepted',
+        ]);
+        
+        // Création SIMPLE sans mutateur
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password), // Hash UNIQUEMENT ici
+            'role' => $request->role,
+        ]);
+        
+        // Option 1: Connecter automatiquement (comportement actuel)
+        Auth::login($user);
+        $request->session()->regenerate();
+        
+        // Option 2: Rediriger vers login (si vous préférez)
+        // return redirect()->route('login')
+        //     ->with('success', 'Compte créé! Vous pouvez maintenant vous connecter.');
+        
+        return redirect()->route('dashboard')
+            ->with('success', 'Compte créé avec succès! Bienvenue ' . $user->name);
+    }
+    
+    public function logout(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        
+        // Nettoyer le token de session
+        $request->session()->forget('api_token');
+        
+        return redirect()->route('login');
+    }
+}
+ 
